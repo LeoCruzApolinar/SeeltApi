@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33829.357
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SeeltApi", "SeeltApi\SeeltApi.csproj", "{107A8FB5-696F-4D37-A8BE-4F9D1FE53EDD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProcesarVideosSeeltApi", "ProcesarVideosSeeltApi\ProcesarVideosSeeltApi.csproj", "{EE068E46-7481-4EF5-BD20-CC58FDBFC44F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{107A8FB5-696F-4D37-A8BE-4F9D1FE53EDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{107A8FB5-696F-4D37-A8BE-4F9D1FE53EDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{107A8FB5-696F-4D37-A8BE-4F9D1FE53EDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{107A8FB5-696F-4D37-A8BE-4F9D1FE53EDD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE068E46-7481-4EF5-BD20-CC58FDBFC44F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE068E46-7481-4EF5-BD20-CC58FDBFC44F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE068E46-7481-4EF5-BD20-CC58FDBFC44F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE068E46-7481-4EF5-BD20-CC58FDBFC44F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3F5BD2FA-C210-46A5-8314-2232E7EEC645}
+	EndGlobalSection
+EndGlobal
