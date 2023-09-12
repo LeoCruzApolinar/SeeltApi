@@ -7,9 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FFMediaToolkit" Version="4.5.1" />
     <PackageReference Include="FFMpegCore" Version="5.1.0" />
     <PackageReference Include="Google.Cloud.Speech.V1" Version="3.4.0" />
     <PackageReference Include="Google.Cloud.Storage.V1" Version="4.6.0" />
+    <PackageReference Include="Google.Cloud.Video.Transcoder.V1" Version="2.6.0" />
+    <PackageReference Include="MediaToolkit" Version="1.1.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.9" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>

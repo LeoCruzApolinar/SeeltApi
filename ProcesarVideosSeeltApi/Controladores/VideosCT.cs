@@ -1,46 +1,58 @@
-﻿using FFMpegCore.Enums;
+﻿using Google.Cloud.Storage.V1;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ProcesarVideosSeeltApi.Modelos;
+using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace ProcesarVideosSeeltApi.Controladores
 {
-    public class VideosCT : Controller
+    [Route("api/[controller]")]
+    [ApiController]
+    public class VideosController : ControllerBase
     {
         [HttpPost("ProcesarSolicitudVideo")]
-        public   bool ProcesarSolicitudVideo(/*[FromBody] GeneralesMD.Solicitud solicitud*/)
+        [DisableRequestSizeLimit]
+        public async Task<IActionResult> ProcesarSolicitudVideo(IFormFile archivoVideo)
         {
             try
             {
-                //Si la solicitud llega como 0 significa que es tipo Libre(Creador de contenido), 1 Pesonalizada (en esta el json contiene diferentes audio y subtitulos)
-                switch (0)
+                VideosMD.VideoPeticion videoPeticion = new VideosMD.VideoPeticion();
+                if (archivoVideo == null || archivoVideo.Length == 0)
                 {
-                    case 0:
-
-                        // Crear una instancia de Stopwatch
-                        Stopwatch stopwatch = new Stopwatch();
-
-                        // Iniciar el cronómetro
-                        stopwatch.Start();
-
-                        VideosMD.ProcesarVideoGeneral("Vídeo.mp4", "MO0RNsEq7xUlGojbS3rKsuMJaQH3");
-
-                        // Detener el cronómetro
-                        stopwatch.Stop();
-
-                        // Mostrar el tiempo transcurrido
-                        Console.WriteLine("Tiempo transcurrido: " + stopwatch.Elapsed);
-                        break;
-                  
+                    return BadRequest("Solicitud de video no válida");
                 }
-            }
-            catch (Exception)
-            {
 
-                throw;
+                // Generar un nombre de archivo único para el video.
+                string nombreArchivo = Guid.NewGuid().ToString();
+                videoPeticion.NombreUnico = nombreArchivo;
+                videoPeticion.Directorio = GeneralesMD.CrearDirectorioTemporal().path;
+                videoPeticion.UID = "MO0RNsEq7xUlGojbS3rKsuMJaQH3";
+                videoPeticion.Formato = "mp4";
+                // Ruta para guardar el video en el servidor (personaliza la ubicación según tus necesidades).
+                string rutaArchivo = Path.Combine(videoPeticion.Directorio, nombreArchivo + "." + videoPeticion.Formato);
+
+                videoPeticion.UbicacionVideoOriginal = rutaArchivo;
+                using (var stream = new FileStream(rutaArchivo, FileMode.Create))
+                {
+                    await archivoVideo.CopyToAsync(stream);
+                }
+                VideosMD videosMD = new VideosMD();
+                videosMD.ProcesarVideoGeneral(videoPeticion);
+                // Realizar alguna acción con el video (por ejemplo, procesarlo con FFMpegCore).
+
+                // Devolver una respuesta exitosa.
+                return Ok($"Video recibido y guardado como {nombreArchivo}");
             }
-            return true;
+            catch (Exception ex)
+            {
+                // Manejar errores aquí según tus necesidades.
+                return StatusCode(500, $"Error: {ex.Message}");
+            }
         }
+
+
     }
 }
