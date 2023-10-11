@@ -1,18 +1,10 @@
-﻿namespace ProcesarVideosSeeltApi.Modelos
+﻿using System.Data.SqlClient;
+
+namespace ProcesarVideosSeeltApi.Modelos
 {
     public class GeneralesMD
     {
-        public class Solicitud
-        {
-            public int ID_Canal { get; set; }
-            public string NombreVideo { get; set; }
-            public string FormatoVideo { get; set; }
-            public string URL_Video { get; set; }
-            public int TipoDeProcesado { get; set; }
-            public string URL_Miniatura { get; set; }
-            public (int ID_Idioma, string URL_AUDIO)[] Audios { get; set; }
-            public (int ID_Idioma, string URL_Sub)[] Subtitulos { get; set; }
-        }
+
         public static (bool success, string path) CrearDirectorioTemporal()
         {
             try
@@ -41,5 +33,33 @@
             }
         }
 
+        public static List<string> ObtenerLasCategorias()
+        {
+            List<string> categorias = new List<string>();
+
+            string connectionString = "Data Source=LeonardoPC;Initial Catalog=SeeltBD;Integrated Security=True"; // Reemplaza con tu cadena de conexión a la base de datos SQL Server
+            string query = "SELECT NOMBRE FROM CATEGORIAS";
+
+            using (SqlConnection connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                using (SqlCommand command = new SqlCommand(query, connection))
+                {
+                    using (SqlDataReader reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string categoria = reader["NOMBRE"].ToString();
+                            categorias.Add(categoria);
+                        }
+                    }
+                }
+            }
+
+            return categorias;
+        }
+
+        //Guardar en base de datos
     }
 }
