@@ -5,14 +5,25 @@ using Google.Apis.Auth.OAuth2;
 using FirebaseAdmin.Auth;
 using System.Data.SqlClient;
 using System.Data;
+using LiteDB;
+using Newtonsoft.Json;
 
 namespace SeeltApi.Modelos
 {
     public class Usuarios
     {
+        public class Usuario
+        {
+            public string Idioma { get; set; }
+            public string Pais { get; set; }
+            public string Nombre { get; set; }
+            public string Apellido { get; set; }
+            public DateTime FechaNacimiento { get; set; }
+            public DateTime FechaDeInicio { get; set; }
+            public string UrlFoto { get; set; }
+        }
         public class UsuarioRegistro
         {
-            public int ID { get; set; }
 
             public int ID_PAIS { get; set; }
 
@@ -29,9 +40,14 @@ namespace SeeltApi.Modelos
             public DateTime DATE_OF_BIRTH { get; set; }
 
             public DateTime FECHA_DE_INICIO { get; set; }
+
+            public string USERNAME { get; set; }
+
+            public IFormFile? FOTO { get; set; }
         }
 
-        private async Task<bool> VerificarExistenciaUsuario(string uidToCheck) 
+        //Verifica con firebase la existencia de usuario
+        private async Task<bool> VerificarExistenciaUsuario(string uidToCheck)
         {
             try
             {
@@ -39,23 +55,22 @@ namespace SeeltApi.Modelos
                 {
                     Credential = GoogleCredential.FromFile(@".\seelt-987cd-7dbe2c8a55dc.json")
                 });
-                FirebaseAuth auth = FirebaseAuth.DefaultInstance;
+                FirebaseAuth auth = FirebaseAuth.GetAuth(FirebaseApp.DefaultInstance);
                 UserRecord userRecord = await auth.GetUserAsync(uidToCheck);
                 return true;
             }
             catch (Exception)
             {
-
                 return false;
             }
         }
-
+        //Con el UID obtiene la id del usuario
         public int ObtenerIdUsuario(string UID) 
         {
             try
             {
                 int id = 0;
-                using (SqlConnection sqlConnection = new SqlConnection("Data Source=LeonardoPC;Initial Catalog=SeeltBD;Integrated Security=True"))
+                using (SqlConnection sqlConnection = new SqlConnection(General.CadenaConexion))
                 {
                     sqlConnection.Open();
                     using(SqlCommand  cmd = new SqlCommand("ObtenerIdUsuarioConUID", sqlConnection)) 
@@ -81,20 +96,16 @@ namespace SeeltApi.Modelos
                 return 0;
             }
         }
-
-        public async Task<int> CrearUsuario(UsuarioRegistro usuarioRegistro)
+        //Crea los usuario
+        public async Task<bool> CrearUsuario(UsuarioRegistro usuarioRegistro)
         {
-
-
-            string uidToCheck = usuarioRegistro.UID;
-
-            try
+            if (await VerificarExistenciaUsuario(usuarioRegistro.UID))
             {
-                FirebaseAuth auth = FirebaseAuth.DefaultInstance;
-                UserRecord userRecord = await auth.GetUserAsync(uidToCheck);
-                Console.WriteLine("El UID existe en Firebase Authentication.");
-                using (SqlConnection sqlConnection = new SqlConnection("Data Source=LeonardoPC;Initial Catalog=SeeltBD;Integrated Security=True"))
+                using (SqlConnection sqlConnection = new SqlConnection(General.CadenaConexion))
                 {
+                    sqlConnection.Open ();
+                    General general = new General();
+                    string urlFoto = general.SubirArchivoGCS(usuarioRegistro.FOTO, usuarioRegistro.UID, "UserData");
                     using (SqlCommand sqlCommand = new SqlCommand("InsertarUsuario", sqlConnection))
                     {
                         sqlCommand.CommandType = CommandType.StoredProcedure;
@@ -106,31 +117,23 @@ namespace SeeltApi.Modelos
                         sqlCommand.Parameters.Add(new SqlParameter("@APELLIDOS", usuarioRegistro.APELLIDOS));
                         sqlCommand.Parameters.Add(new SqlParameter("@DATE_OF_BIRTH", usuarioRegistro.DATE_OF_BIRTH));
                         sqlCommand.Parameters.Add(new SqlParameter("@FECHA_DE_INICIO", usuarioRegistro.FECHA_DE_INICIO));
+                        sqlCommand.Parameters.Add(new SqlParameter("@USERNAME", usuarioRegistro.USERNAME));
+                        sqlCommand.Parameters.Add(new SqlParameter("@FOTO_URL", urlFoto));
 
                         sqlCommand.ExecuteNonQuery();
                         Console.WriteLine("Usuario insertado correctamente.");
 
                     }
+                    sqlConnection.Close();
                 }
-                return 0;
+                return true;
             }
-            catch (FirebaseAuthException e)
+            else
             {
-                if (e.AuthErrorCode == AuthErrorCode.UserNotFound)
-                {
-                    Console.WriteLine("El UID no existe en Firebase Authentication.");
-                    return 1;
-                }
-                else
-                {
-                    Console.WriteLine($"Ocurrió un error al verificar el UID: {e.Message}");
-                    return 2;
-                }
+                return false;
             }
-
-
         }
-
+        //Con el nombre del canal consigue la id y con uid consigue la id del usuario luego realiza la relacion en la tabla sucripcion
         public async Task<bool> Suscribir(string NombreCanal, string UID) 
         {
             try
@@ -143,7 +146,7 @@ namespace SeeltApi.Modelos
                     int IdUsuario = canales.ObtenerIdCanal(UID);
                     if (IdCanal != 0 && IdUsuario != 0)
                     {
-                        using (SqlConnection sqlConnection = new SqlConnection())
+                        using (SqlConnection sqlConnection = new SqlConnection(General.CadenaConexion))
                         {
                             sqlConnection.Open();
                             using (SqlCommand sqlCommand = new SqlCommand("RealizarSuscripcion", sqlConnection))
@@ -173,7 +176,7 @@ namespace SeeltApi.Modelos
                 return false;
             }
         }
-
+        //Con el nombre del canal consigue la id y con uid consigue la id del usuario luego elimina la relacion en la tabla sucripcion
         public async Task<bool> EliminarSuscripcion(string NombreCanal, string UID)
         {
             try
@@ -186,7 +189,7 @@ namespace SeeltApi.Modelos
                     int IdUsuario = canales.ObtenerIdCanal(UID);
                     if (IdCanal != 0 && IdUsuario != 0)
                     {
-                        using (SqlConnection sqlConnection = new SqlConnection())
+                        using (SqlConnection sqlConnection = new SqlConnection(General.CadenaConexion))
                         {
                             sqlConnection.Open();
                             using (SqlCommand sqlCommand = new SqlCommand("EliminarSuscripcion", sqlConnection))
@@ -215,6 +218,88 @@ namespace SeeltApi.Modelos
 
                 return false;
             }
+        }
+        //Verifica si el nombre de usuario esta en uso
+        public bool VerificarUserName(string username)
+        {
+            bool a = false;
+            using (SqlConnection connection = new SqlConnection(General.CadenaConexion))
+            {
+                connection.Open();
+
+                string query = "SELECT 1 FROM [USUARIOS] WHERE [USERNAME] = @Username";
+                using (SqlCommand command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@Username", username);
+
+                    using (SqlDataReader reader = command.ExecuteReader())
+                    {
+                        a =  reader.HasRows; // Devuelve true si el nombre de usuario existe, false si no existe.
+                    }
+                }
+                connection.Close();
+
+            }
+            return a;
+        }
+        //Guardar log Usuario
+        public void InsertarRegistroInicioSesion(int idUsuario, DateTime loginDatetime, string ipAddress)
+        {
+            using (SqlConnection connection = new SqlConnection(General.CadenaConexion))
+            {
+                connection.Open();
+                using (SqlCommand command = new SqlCommand("InsertRegistroInicioSesion", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+
+                    // Parámetros del stored procedure
+                    command.Parameters.AddWithValue("@ID_USUARIO", idUsuario);
+                    command.Parameters.AddWithValue("@LOGIN_DATETIME", loginDatetime);
+                    command.Parameters.AddWithValue("@IP_ADDRESS", ipAddress);
+
+                    command.ExecuteNonQuery();
+                    connection.Close();
+                }
+            }
+        }
+        //Obtener usuario
+        public  string ObtenerUsuarioPorID(int userID)
+        {
+            string connectionString = General.CadenaConexion; // Reemplaza con tu cadena de conexión a la base de datos
+            string jsonResult = string.Empty;
+
+            using (SqlConnection connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                using (SqlCommand command = new SqlCommand("ObtenerUsuarioPorID", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+                    command.Parameters.AddWithValue("@ID", userID);
+
+                    using (SqlDataReader reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            Usuario usuario = new Usuario
+                            {
+                                Idioma = reader["Idioma"].ToString(),
+                                Pais = reader["Pais"].ToString(),
+                                Nombre = reader["Nombre"].ToString(),
+                                Apellido = reader["Apellido"].ToString(),
+                                FechaNacimiento = Convert.ToDateTime(reader["FechaNacimiento"]),
+                                FechaDeInicio = Convert.ToDateTime(reader["FechaDeInicio"]),
+                                UrlFoto = reader["UrlFoto"].ToString()
+                            };
+
+                            jsonResult = JsonConvert.SerializeObject(usuario);
+                        }
+                    }
+                }
+                connection.Close();
+            }
+
+            return jsonResult;
         }
     }
 }

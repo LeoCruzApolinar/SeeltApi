@@ -17,12 +17,13 @@ namespace SeeltApi.Modelos
 
             public string FOTO_PORTADA { get; set; }
         }
+        //Obtiene la id del canal por el nombre el cual es unico
         public int ObtenerIdCanal(string Nombre)
         {
             try
             {
                 int id = 0;
-                using (SqlConnection sqlConnection = new SqlConnection("Data Source=LeonardoPC;Initial Catalog=SeeltBD;Integrated Security=True"))
+                using (SqlConnection sqlConnection = new SqlConnection(General.CadenaConexion))
                 {
                     sqlConnection.Open();
                     using (SqlCommand cmd = new SqlCommand("ObtenerIdCanalConNombre", sqlConnection))
