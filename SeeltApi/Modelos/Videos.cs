@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Data.SqlClient;
 using System.Data;
+using System.Text;
 
 namespace SeeltApi.Modelos
 {
@@ -29,18 +30,49 @@ namespace SeeltApi.Modelos
             public string URL_MINIATURA { get; set; }
         }
 
-        public List<Video> ObtenerVideosCanal(string Nombre) 
+        public List<Video> ObtenerVideosCanal(string Nombre)
         {
-            using(SqlConnection sqlConnection = new SqlConnection()) 
+            using (SqlConnection sqlConnection = new SqlConnection())
             {
                 sqlConnection.Open();
-                using (SqlCommand sqlCommand = new SqlCommand("",sqlConnection)) 
+                using (SqlCommand sqlCommand = new SqlCommand("", sqlConnection))
                 {
                     sqlCommand.CommandType = CommandType.StoredProcedure;
 
                 }
             }
             return null; // trabajar
+        }
+
+        public string GetTipoDeVideoAsJSON()
+        {
+            string connectionString = General.CadenaConexion;
+            using (SqlConnection connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                using (SqlCommand cmd = new SqlCommand("GetTipoDeVideoAsJSON", connection))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        if (reader.HasRows)
+                        {
+                            StringBuilder jsonResult = new StringBuilder();
+                            while (reader.Read())
+                            {
+                                jsonResult.Append(reader[0].ToString()); // Columna NOMBRE
+                            }
+                            return jsonResult.ToString();
+                        }
+                        else
+                        {
+                            return "No se encontraron resultados.";
+                        }
+                    }
+                }
+            }
         }
 
     }

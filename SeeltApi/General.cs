@@ -1,5 +1,8 @@
 ﻿using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Storage.V1;
+using LiteDB;
+using System.Data.SqlClient;
+using System.Data;
 using System.Net;
 using System.Security.AccessControl;
 
@@ -44,6 +47,12 @@ namespace SeeltApi
                 return "";
             }
         }
+        public class EtiquetaData
+        {
+            public string idCanal { get; set; }
+            public string nombre { get; set; }
+            public string color { get; set; }
+        }
 
         public string GetClientIpAddress(HttpRequest request)
         {
@@ -58,6 +67,32 @@ namespace SeeltApi
             return ipAddress;
         }
 
+        public void InsertarEtiqueta(int idCanal, string nombre, string color)
+        {
+            using (SqlConnection connection = new SqlConnection(CadenaConexion))
+            {
+                using (SqlCommand command = new SqlCommand("InsertarEtiqueta", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
 
+                    // Agregar los parámetros requeridos por el procedimiento almacenado
+                    command.Parameters.AddWithValue("@ID_CANAL", idCanal);
+                    command.Parameters.AddWithValue("@NOMBRE", nombre);
+                    command.Parameters.AddWithValue("@COLOR", color);
+
+                    try
+                    {
+                        connection.Open();
+                        command.ExecuteNonQuery();
+                    }
+                    catch (SqlException ex)
+                    {
+                        // Manejo de errores
+                        Console.WriteLine("Error al insertar etiqueta: " + ex.Message);
+                    }
+                }
+            }
+        }
     }
 }
+

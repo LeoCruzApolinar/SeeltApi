@@ -1,4 +1,6 @@
 
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+
 namespace ProcesarVideosSeeltApi
 {
     public class Program
@@ -13,6 +15,11 @@ namespace ProcesarVideosSeeltApi
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+            builder.Services.Configure<IISServerOptions>(options =>
+            {
+                options.MaxRequestBodySize = null;
+                options.MaxRequestBodyBufferSize = 1000000000;
+            });
 
             var app = builder.Build();
 
@@ -22,7 +29,6 @@ namespace ProcesarVideosSeeltApi
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-
             app.UseHttpsRedirection();
 
             app.UseAuthorization();

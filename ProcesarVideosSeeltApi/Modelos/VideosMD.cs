@@ -30,14 +30,17 @@ namespace ProcesarVideosSeeltApi.Modelos
             public string NombreUnico { get; set; }
             public string Directorio { get; set; }
             public string Formato { get; set; }
+
             public string UID { get; set; }
             public string TituloVideo { get; set; }
             public string? Descripcion { get; set; }
             public string? URL_Miniatura { get; set; }
             public List<Subtitulo>? ListaSubtitulos = new List<Subtitulo>();
             public List<Audio>? ListaAudios = new List<Audio>();
+            public List<string>? Categorias = new List<string>();
+            public string NombreCanal { get; set; }
+            public int TipoVideo { get; set; }
         }
-
         public class AudioFile
         {
             public FormFile Archivo { get; set; }
@@ -239,7 +242,7 @@ namespace ProcesarVideosSeeltApi.Modelos
                 var resultado = _taskB.Result;
 
                 string master = CrearMasterM3U8_Simple(videoPeticion, ListaDeM3U8Web, M3U8_AudioNew, resultado.idioma);
-                SubirArchivoGCS(master, videoPeticion.UID, $"{videoPeticion.NombreUnico}");
+                string ursl = SubirArchivoGCS(master, videoPeticion.UID, $"{videoPeticion.NombreUnico}");
 
                 var chatGPT = new ChatGPT();
 
@@ -258,8 +261,25 @@ namespace ProcesarVideosSeeltApi.Modelos
 
                 var lc = chatGPT.EliminarDuplicados(chatGPT.EncontrarPalabrasComunes(ListaDeCategoriasXTranscripcion, ListaDeCategoriasXTitulo, ListaDeCategoriasXDescripcion, SimilarT, SimilarTi, SimilarD));
 
-                stopwatch.Stop();
-                Console.WriteLine("Tiempo transcurrido: " + stopwatch.Elapsed);
+                GeneralesMD.VideoUp videoUp = new GeneralesMD.VideoUp()
+                {
+                    TipoDeVideoId = videoPeticion.TipoVideo,
+                    VisibilidadId = 1,
+                    UrlVideo = ursl,
+                    Titulo = videoPeticion.TituloVideo,
+                    Descripcion = videoPeticion.Descripcion,
+                    Duracion = ObtenerDuracion(videoPeticion.UbicacionVideoOriginal),
+                    FechaSubida = DateTime.Now,
+                    UrlMiniatura = videoPeticion.URL_Miniatura
+                };
+
+
+                GeneralesMD generalesMD = new GeneralesMD();
+                int id = generalesMD.InsertarVideo(videoUp);
+                foreach (var item in lc)
+                {
+                    generalesMD.InsertarVideoCategoria(id, generalesMD.ObtenerIdCategoriaPorNombre(item));
+                }
             }
             catch (Exception ex)
             {
@@ -433,7 +453,27 @@ namespace ProcesarVideosSeeltApi.Modelos
 
                 string UbicancionM3U8Master = Path.Combine(videoPeticion.Directorio, $"master.m3u8");
                 CrearM3U8Avanzado(m3U8_Avanzado, UbicancionM3U8Master);
-                SubirArchivoGCS(UbicancionM3U8Master, videoPeticion.UID, $"{videoPeticion.NombreUnico}");
+                string URLS = SubirArchivoGCS(UbicancionM3U8Master, videoPeticion.UID, $"{videoPeticion.NombreUnico}");
+
+                GeneralesMD.VideoUp videoUp = new GeneralesMD.VideoUp()
+                {
+                    TipoDeVideoId = videoPeticion.TipoVideo,
+                    VisibilidadId = 1,
+                    UrlVideo = URLS,
+                    Titulo = videoPeticion.TituloVideo,
+                    Descripcion = videoPeticion.Descripcion,
+                    Duracion = ObtenerDuracion(videoPeticion.UbicacionVideoOriginal),
+                    FechaSubida = DateTime.Now,
+                    UrlMiniatura = videoPeticion.URL_Miniatura
+                };
+
+
+                GeneralesMD generalesMD = new GeneralesMD();
+                int id = generalesMD.InsertarVideo(videoUp);
+                foreach (var item in videoPeticion.Categorias)
+                {
+                    generalesMD.InsertarVideoCategoria(id, generalesMD.ObtenerIdCategoriaPorNombre(item));
+                }
 
             }
             catch (Exception ex)

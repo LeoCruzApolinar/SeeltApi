@@ -27,8 +27,11 @@ namespace ProcesarVideosSeeltApi.Controladores
                 var ArchivoVideo = Request.Form.Files["ArchivoVideo"];
                 var TituloVideo = Request.Form["TituloVideo"];
                 var Descripcion = Request.Form["Descripcion"];
+                var NombreCanal = Request.Form["NombreCanal"];
                 var UID = Request.Form["UID"];
                 var URL_Miniatura = Request.Form["URL_Miniatura"];
+                var TipoVideo = Request.Form["TipoVideo"];
+
                 Console.WriteLine("Peticion recibida");
                 if (ArchivoVideo == null || ArchivoVideo.Length == 0)
                     return BadRequest("Solicitud de video no válida");
@@ -53,6 +56,10 @@ namespace ProcesarVideosSeeltApi.Controladores
                     TituloVideo = TituloVideo,
                     Descripcion = Descripcion,
                     URL_Miniatura = URL_Miniatura,
+                    NombreCanal = NombreCanal,
+                    TipoVideo = int.Parse(TipoVideo),
+
+
                 };
 
                 var videosMD = new VideosMD();
@@ -72,18 +79,7 @@ namespace ProcesarVideosSeeltApi.Controladores
         {
             try
             {
-                /*
-                             public string UbicacionVideoOriginal { get; set; }
-            public string NombreUnico { get; set; }
-            public string Directorio { get; set; }
-            public string Formato { get; set; }
-            public string UID { get; set; }
-            public string TituloVideo { get; set; }
-            public string? Descripcion { get; set; }
-            public string? URL_Miniatura { get; set; }
-            public List<Subtitulo>? ListaSubtitulos = new List<Subtitulo>();
-            public List<Audio>? ListaAudios = new List<Audio>();
-                 */
+
 
                 var ArchivoVideo = Request.Form.Files["ArchivoVideo"];
                 var ListaSubtitulos = Request.Form.Files.GetFiles("ListaSubtitulos[]");
@@ -91,9 +87,11 @@ namespace ProcesarVideosSeeltApi.Controladores
                 var TituloVideo = Request.Form["TituloVideo"];
                 var Descripcion = Request.Form["Descripcion"];
                 var UID = Request.Form["UID"];
+                var NombreCanal = Request.Form["NombreCanal"];
+                var TipoVideo = Request.Form["TipoVideo"];
                 var URL_Miniatura = Request.Form["URL_Miniatura"];
                 string Directorio = GeneralesMD.CrearDirectorioTemporal().path;
-
+                var Categorias = Request.Form["Categorias"];
                 VideosMD.VideoPeticion videoPeticion = new VideosMD.VideoPeticion()
                 {
                     NombreUnico = Guid.NewGuid().ToString(),
@@ -104,6 +102,10 @@ namespace ProcesarVideosSeeltApi.Controladores
                     URL_Miniatura = URL_Miniatura,
                     UbicacionVideoOriginal = await GeneralesMD.GuardarArchivoVideo(Directorio, ArchivoVideo),
                     Formato = Path.GetExtension(ArchivoVideo.FileName),
+                    NombreCanal = NombreCanal,
+                    TipoVideo = int.Parse(TipoVideo),
+                    Categorias = JsonConvert.DeserializeObject<List<string>>(Categorias),
+
                 };
 
                 List<VideosMD.Subtitulo> Lsubtitulos = new List<VideosMD.Subtitulo>();
