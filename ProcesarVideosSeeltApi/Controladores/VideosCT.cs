@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using static ProcesarVideosSeeltApi.Modelos.IAMD;
+using static ProcesarVideosSeeltApi.Modelos.VideosMD;
 
 namespace ProcesarVideosSeeltApi.Controladores
 {
@@ -71,77 +72,64 @@ namespace ProcesarVideosSeeltApi.Controladores
         {
             try
             {
-
+                /*
+                             public string UbicacionVideoOriginal { get; set; }
+            public string NombreUnico { get; set; }
+            public string Directorio { get; set; }
+            public string Formato { get; set; }
+            public string UID { get; set; }
+            public string TituloVideo { get; set; }
+            public string? Descripcion { get; set; }
+            public string? URL_Miniatura { get; set; }
+            public List<Subtitulo>? ListaSubtitulos = new List<Subtitulo>();
+            public List<Audio>? ListaAudios = new List<Audio>();
+                 */
 
                 var ArchivoVideo = Request.Form.Files["ArchivoVideo"];
-
-                var ListaSubtitulos = Request.Form["ListaSubtitulos"];
-                var ListaAudios = Request.Form["ListaAudios"];
-
+                var ListaSubtitulos = Request.Form.Files.GetFiles("ListaSubtitulos[]");
+                var ListaAudios = Request.Form.Files.GetFiles("ListaAudios[]");
                 var TituloVideo = Request.Form["TituloVideo"];
                 var Descripcion = Request.Form["Descripcion"];
                 var UID = Request.Form["UID"];
                 var URL_Miniatura = Request.Form["URL_Miniatura"];
+                string Directorio = GeneralesMD.CrearDirectorioTemporal().path;
 
-                VideosMD.VideoPeticion videoPeticionAvanzada = new VideosMD.VideoPeticion();
-                videoPeticionAvanzada.UID = UID;
-                videoPeticionAvanzada.Descripcion = Descripcion;
-                videoPeticionAvanzada.TituloVideo = TituloVideo;
-                videoPeticionAvanzada.URL_Miniatura = URL_Miniatura;
-                videoPeticionAvanzada.Directorio = GeneralesMD.CrearDirectorioTemporal().path;
-
-                var extension = Path.GetExtension(ArchivoVideo.FileName);
-                var nombreArchivo = Guid.NewGuid().ToString();
-                videoPeticionAvanzada.Formato = extension.TrimStart('.');
-
-                var rutaArchivo = Path.Combine(videoPeticionAvanzada.Directorio, $"{nombreArchivo}{extension}");
-
-                await using (var stream = new FileStream(rutaArchivo, FileMode.Create))
+                VideosMD.VideoPeticion videoPeticion = new VideosMD.VideoPeticion()
                 {
-                    await ArchivoVideo.CopyToAsync(stream);
-                }
+                    NombreUnico = Guid.NewGuid().ToString(),
+                    Directorio = Directorio,
+                    TituloVideo = TituloVideo,
+                    Descripcion = Descripcion,
+                    UID = UID,
+                    URL_Miniatura = URL_Miniatura,
+                    UbicacionVideoOriginal = await GeneralesMD.GuardarArchivoVideo(Directorio, ArchivoVideo),
+                    Formato = Path.GetExtension(ArchivoVideo.FileName),
+                };
 
-                videoPeticionAvanzada.UbicacionVideoOriginal = rutaArchivo;
-
-                var ListaAudioFile = JsonConvert.DeserializeObject<List<VideosMD.AudioFile>>(ListaAudios);
-
-                foreach (var item in ListaAudioFile)
+                List<VideosMD.Subtitulo> Lsubtitulos = new List<VideosMD.Subtitulo>();
+                foreach (var item in ListaSubtitulos)
                 {
-                    VideosMD.Audio audio = new VideosMD.Audio();
-                    var extensionaudio = Path.GetExtension(item.Archivo.FileName);
-                    var nombreArchivoaudio = Guid.NewGuid().ToString();
-                    var rutaArchivoAudio = Path.Combine(videoPeticionAvanzada.Directorio, $"{nombreArchivoaudio}{extensionaudio}");
-
-                    await using (var stream = new FileStream(rutaArchivoAudio, FileMode.Create))
+                    VideosMD.Subtitulo subtitulo = new VideosMD.Subtitulo()
                     {
-                        await item.Archivo.CopyToAsync(stream);
-                    }
-
-                    audio.Ubicacion = rutaArchivoAudio;
-                    audio.Idioma = item.Idioma;
-                    videoPeticionAvanzada.ListaAudios.Add(audio);
+                        Ubicacion = await GeneralesMD.GuardarArchivoVideo(Directorio, item),
+                        Idioma = GeneralesMD.ObtenerContenidoEntreCorchetes(item.FileName)
+                    };
+                    Lsubtitulos.Add(subtitulo);
                 }
-
-                var ListaSubFile = JsonConvert.DeserializeObject<List<VideosMD.SubtituloFile>>(ListaSubtitulos);
-
-                foreach (var item in ListaSubFile)
+                List<VideosMD.Audio> Laudios = new List<VideosMD.Audio>();
+                foreach (var item in ListaAudios)
                 {
-                    VideosMD.Subtitulo subtitulo = new VideosMD.Subtitulo();
-                    var extensionSub = Path.GetExtension(item.Archivo.FileName);
-                    var nombreArchivoSub = Guid.NewGuid().ToString();
-                    var rutaArchivoAudio = Path.Combine(videoPeticionAvanzada.Directorio, $"{nombreArchivoSub}{extensionSub}");
-
-                    await using (var stream = new FileStream(rutaArchivoAudio, FileMode.Create))
+                    VideosMD.Audio audio = new VideosMD.Audio()
                     {
-                        await item.Archivo.CopyToAsync(stream);
-                    }
-
-                    subtitulo.Ubicacion = rutaArchivoAudio;
-                    subtitulo.Idioma = item.Idioma;
-                    videoPeticionAvanzada.ListaSubtitulos.Add(subtitulo);
+                        Ubicacion = await GeneralesMD.GuardarArchivoVideo(Directorio, item),
+                        Idioma = GeneralesMD.ObtenerContenidoEntreCorchetes(item.FileName),
+                    };
+                    Laudios.Add(audio);
                 }
+                videoPeticion.ListaSubtitulos = Lsubtitulos;
+                videoPeticion.ListaAudios = Laudios;
                 VideosMD videosMD = new VideosMD();
-                videosMD.ProcesarVideoAvanzado(videoPeticionAvanzada);
+                videosMD.ProcesarVideoAvanzado(videoPeticion);
                 return Ok($"Video recibido y guardado como");
             }
             catch (Exception ex)

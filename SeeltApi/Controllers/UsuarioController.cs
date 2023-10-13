@@ -54,7 +54,6 @@ namespace SeeltApi.Controllers
                 return StatusCode(500, $"Error interno del servidor: {ex.Message}");
             }
         }
-
         [HttpPost("LogUsuario")]
         public void InsertarSesion(string UID)
         {
@@ -68,12 +67,64 @@ namespace SeeltApi.Controllers
             usuarios.InsertarRegistroInicioSesion(idUsuario, loginDatetime, ipAddress);
         }
         [HttpGet("ObtenerDatosUsuario")]
-        public IActionResult ObtenerPaises(string UID)
+        public IActionResult ObtenerDatosUsuario(string UID)
         {
             Usuarios usuarios = new Usuarios();
             int Id = usuarios.ObtenerIdUsuario(UID);
             string Json = usuarios.ObtenerUsuarioPorID(Id);
             return Ok(Json);
+        }
+        [HttpPost("Suscribir")] 
+        public async Task<IActionResult> SuscribirUsuarioACanal(string NombreCanal, string UID)
+        {
+            try
+            {
+                Usuarios usuarios = new Usuarios();
+                bool suscripcionExitosa = await usuarios.Suscribir(NombreCanal, UID);
+                return Ok(suscripcionExitosa);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "Error en el servidor: " + ex.Message);
+            }
+        }
+        [HttpPost("EliminarSuscripcion")]
+        public async Task<IActionResult> EliminarSuscripcion(string NombreCanal, string UID)
+        {
+            try
+            {
+                Usuarios usuarios = new Usuarios();
+                bool EliminarSuscripcionExitosa = await usuarios.EliminarSuscripcion(NombreCanal, UID);
+                return Ok(EliminarSuscripcionExitosa);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "Error en el servidor: " + ex.Message);
+            }
+        }
+        [HttpGet("ObtenerCanalesSuscritos")]
+        public IActionResult ObtenerCanalesSuscritos(string UID)
+        {
+            Usuarios usuarios = new Usuarios();
+            int Id = usuarios.ObtenerIdUsuario(UID);
+            string Json = usuarios.ObtenerCanalesSuscritos(Id);
+            return Ok(Json);
+        }
+        [HttpPost("RegistrarReaccion")]
+        public async Task<IActionResult> RegistrarReaccion(int IdVideo, string UID, int TipoReaccion)
+        {
+            try
+            {
+                Usuarios usuarios = new Usuarios();
+                
+                bool Exitosa =  usuarios.RegistrarReaccion(usuarios.ObtenerIdUsuario(UID), IdVideo, TipoReaccion);
+
+                return Ok(Exitosa);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "Error en el servidor: " + ex.Message);
+            }
         }
     }
 }

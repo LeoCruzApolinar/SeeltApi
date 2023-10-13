@@ -1,6 +1,10 @@
-﻿using FFMpegCore;
+﻿using FFmpeg.AutoGen;
+using FFMpegCore;
 using Google.Cloud.Storage.V1;
+using Newtonsoft.Json;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using System.Text;
 using System.Text.RegularExpressions;
 using static ProcesarVideosSeeltApi.Modelos.IAMD;
 using static ProcesarVideosSeeltApi.Modelos.VideosMD;
@@ -48,8 +52,8 @@ namespace ProcesarVideosSeeltApi.Modelos
 
         public class Subtitulo
         {
-            public string Ubicacion { get; set;}
-            public string Idioma { get; set;}
+            public string Ubicacion { get; set; }
+            public string Idioma { get; set; }
         }
 
         public class Audio
@@ -70,6 +74,14 @@ namespace ProcesarVideosSeeltApi.Modelos
             public List<string> Ubicaciones = new List<string>();
         }
 
+        public class M3U8_Avanzado
+        {
+            public List<VideosCS> ListVideo = new List<VideosCS>();
+            public List<Audio> ListAudio = new List<Audio>();
+            public Dictionary<string, List<string>> ListSubtitulos = new Dictionary<string, List<string>>();
+
+        }
+
         public async void ProcesarVideoGeneral(VideoPeticion videoPeticion)
         {
             try
@@ -86,10 +98,10 @@ namespace ProcesarVideosSeeltApi.Modelos
                     int a = 0;
                     while ((seg - Tiempo) > 60)
                     {
-                        string outputFile = Path.Combine(Path.GetDirectoryName(Audio), "Audio"+a+"_.mp3");
+                        string outputFile = Path.Combine(Path.GetDirectoryName(Audio), "Audio" + a + "_.mp3");
                         AudioMD.TrimAudio(Audio, outputFile, Tiempo, 59);
                         Tiempo = Tiempo + 60;
-                        a ++;
+                        a++;
                         AudiosUbicacion.Add(outputFile);
                         if (Tiempo == 240 || (seg - Tiempo) < 60)
                         {
@@ -265,7 +277,7 @@ namespace ProcesarVideosSeeltApi.Modelos
 
                 var _task = Task.Run(async () =>
                 {
-                    List<VideosCS> ListaVideosCS = ObtenerVideoEnDiferenteResoluciones(videoPeticion);
+                    List<VideosCS> ListaVideosCS = ObtenerVideoEnDiferenteResolucionesAD(videoPeticion);
                     return ListaVideosCS;
                 });
 
@@ -276,7 +288,8 @@ namespace ProcesarVideosSeeltApi.Modelos
                 List<VideosCS> Carpetas = new List<VideosCS>();
 
                 List<VideosCS> ListaDeM3U8 = new List<VideosCS>();
-
+                string VideoSinAudio = Path.Combine(videoPeticion.Directorio, "videoSinAudio." + videoPeticion.Formato);
+                videoPeticion.UbicacionVideoOriginal = VideoSinAudio;
                 foreach (var item in ListaVideosCS)
                 {
                     VideosCS videosCS = new VideosCS();
@@ -317,10 +330,11 @@ namespace ProcesarVideosSeeltApi.Modelos
                     ListVideoSegmentos.Add(videoSegmentos);
                 }
 
+
                 List<Audio> ListaM3u8Audio = new List<Audio>();
                 foreach (var item in videoPeticion.ListaAudios)
                 {
-                    string carpetaNueva = $"{Path.Combine(videoPeticion.Directorio, item.Idioma)}";
+                    string carpetaNueva = $"{Path.Combine(videoPeticion.Directorio, "Audio_" + item.Idioma)}";
                     Audio Audio_M3U8 = new Audio();
                     if (!Directory.Exists(carpetaNueva))
                     {
@@ -346,10 +360,81 @@ namespace ProcesarVideosSeeltApi.Modelos
                     string Carpeta = Path.GetDirectoryName(item.Ubicacion);
                     foreach (var itemA in Directory.GetFiles(Carpeta, "*.ts").ToList())
                     {
-                        archivosTS.Add(SubirArchivoGCS(itemA, videoPeticion.UID, $"{videoPeticion.NombreUnico}/{Carpeta}"));
+                        archivosTS.Add(SubirArchivoGCS(itemA, videoPeticion.UID, $"{videoPeticion.NombreUnico}/Audio_{item.Idioma}"));
                     }
                     ListAudioSegmentos.Add(item.Idioma, archivosTS);
                 }
+                //
+                List<Subtitulo> ListaM3u8Subtitulo = new List<Subtitulo>();
+                foreach (var item in videoPeticion.ListaSubtitulos)
+                {
+                    string carpetaNueva = $"{Path.Combine(videoPeticion.Directorio, "Sub_" + item.Idioma)}";
+                    Subtitulo Subtitulo_M3U8 = new Subtitulo();
+                    if (!Directory.Exists(carpetaNueva))
+                    {
+                        // Crear la carpeta
+                        Directory.CreateDirectory(carpetaNueva);
+                        Console.WriteLine("Carpeta creada con éxito.");
+                    }
+                    else
+                    {
+                        Console.WriteLine("La carpeta ya existe.");
+                    }
+                    ConvertSrtToVtt(item.Ubicacion, Path.Combine(carpetaNueva, $"FIle_{item.Idioma}_index.vtt"));
+                    Subtitulo_M3U8.Idioma = item.Idioma;
+                    Subtitulo_M3U8.Ubicacion = Path.Combine(carpetaNueva, $"FIle_{item.Idioma}_index.vtt");
+                    ListaM3u8Subtitulo.Add(Subtitulo_M3U8);
+                }
+
+
+                Dictionary<string, List<string>> ListSubtitulos = new Dictionary<string, List<string>>();
+                foreach (var item in ListaM3u8Subtitulo)
+                {
+                    List<string> archivosTS = new List<string>();
+                    string Carpeta = Path.GetDirectoryName(item.Ubicacion);
+                    foreach (var itemA in Directory.GetFiles(Carpeta, "*.vtt").ToList())
+                    {
+                        archivosTS.Add(SubirArchivoGCS(itemA, videoPeticion.UID, $"{videoPeticion.NombreUnico}/Subtitulo_{item.Idioma}"));
+                    }
+                    ListSubtitulos.Add(item.Idioma, archivosTS);
+                }
+                int a = 0;
+
+                List<VideosCS> ListaDeM3U8WebVideo = new List<VideosCS>();
+                foreach (var item in ListaDeM3U8)
+                {
+                    VideosCS videosCS = new VideosCS();
+                    string NuevoM3U8 = Path.Combine(Path.GetDirectoryName(item.Ubicacion), $"{item.Resolucion}_index.m3u8");
+                    ModificarM3U8(item.Ubicacion, NuevoM3U8, Directory.GetFiles(Path.GetDirectoryName(item.Ubicacion), "*.ts").ToList(), ListVideoSegmentos[a].Ubicaciones);
+                    videosCS.Ubicacion = SubirArchivoGCS(NuevoM3U8, videoPeticion.UID, $"{videoPeticion.NombreUnico}/{item.Resolucion}");
+                    videosCS.Resolucion = item.Resolucion;
+                    ListaDeM3U8WebVideo.Add(videosCS);
+                    a++;
+                }
+
+                List<Audio> ListaDeM3U8WebAudio = new List<Audio>();
+                foreach (var item in ListaM3u8Audio)
+                {
+                    Audio AudioCS = new Audio();
+                    string NuevoM3U8 = Path.Combine(Path.GetDirectoryName(item.Ubicacion), $"Audio_{item.Idioma}_index.m3u8");
+                    ModificarM3U8(item.Ubicacion, NuevoM3U8, Directory.GetFiles(Path.GetDirectoryName(item.Ubicacion), "*.ts").ToList(), ListAudioSegmentos[item.Idioma]);
+                    AudioCS.Ubicacion = SubirArchivoGCS(NuevoM3U8, videoPeticion.UID, $"{videoPeticion.NombreUnico}/Audio_{item.Idioma}");
+                    AudioCS.Idioma = item.Idioma;
+                    ListaDeM3U8WebAudio.Add(AudioCS);
+                }
+
+                M3U8_Avanzado m3U8_Avanzado = new M3U8_Avanzado()
+                {
+                    ListVideo = ListaDeM3U8WebVideo,
+                    ListAudio = ListaDeM3U8WebAudio,
+                    ListSubtitulos = ListSubtitulos,
+                };
+                //string json = JsonConvert.SerializeObject(m3U8_Avanzado, Formatting.Indented);
+
+                string UbicancionM3U8Master = Path.Combine(videoPeticion.Directorio, $"master.m3u8");
+                CrearM3U8Avanzado(m3U8_Avanzado, UbicancionM3U8Master);
+                SubirArchivoGCS(UbicancionM3U8Master, videoPeticion.UID, $"{videoPeticion.NombreUnico}");
+
             }
             catch (Exception ex)
             {
@@ -392,6 +477,62 @@ namespace ProcesarVideosSeeltApi.Modelos
 
                 throw;
             }
+        }
+
+        static void ConvertSrtToVtt(string inputFilePath, string outputFilePath)
+        {
+            try
+            {
+                string srtContent = File.ReadAllText(inputFilePath, Encoding.UTF8);
+                string vttContent = ConvertSrtToVttString(srtContent);
+
+                File.WriteAllText(outputFilePath, vttContent, Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error: " + ex.Message);
+            }
+        }
+
+        static string ConvertSrtToVttString(string srtContent)
+        {
+            // Reemplazar los separadores de tiempo
+            srtContent = srtContent.Replace(',', '.');
+
+            // Agregar la cabecera de VTT
+            string vttContent = "WEBVTT\r\n\r\n";
+
+            // Dividir las líneas en bloques de subtítulos
+            string[] subtitleBlocks = srtContent.Split(new string[] { "\r\n\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (string subtitleBlock in subtitleBlocks)
+            {
+                string[] lines = subtitleBlock.Split('\n');
+
+                if (lines.Length >= 3)
+                {
+                    // Obtener el tiempo de inicio y fin del subtítulo
+                    string[] timeInfo = lines[1].Split(new char[] { '-', '>' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    if (timeInfo.Length == 2)
+                    {
+                        string startTime = timeInfo[0].Trim();
+                        string endTime = timeInfo[1].Trim();
+
+                        vttContent += startTime + " --> " + endTime + "\r\n";
+
+                        // Agregar las líneas del subtítulo
+                        for (int i = 2; i < lines.Length; i++)
+                        {
+                            vttContent += lines[i].Trim() + "\r\n";
+                        }
+
+                        vttContent += "\r\n";
+                    }
+                }
+            }
+
+            return vttContent;
         }
 
         public TimeSpan ObtenerDuracion(string inputFilePath)
@@ -444,7 +585,41 @@ namespace ProcesarVideosSeeltApi.Modelos
             }
         }
 
-        public  List<VideosCS> ObtenerVideoEnDiferenteResoluciones(VideoPeticion videoPeticion)
+        public List<VideosCS> ObtenerVideoEnDiferenteResolucionesAD(VideoPeticion videoPeticion)
+        {
+            try
+            {
+                List<VideosCS> ListavideosCs = new List<VideosCS>();
+                string VideoSinAudio = Path.Combine(videoPeticion.Directorio, "videoSinAudio." + videoPeticion.Formato);
+                Mutear(videoPeticion.UbicacionVideoOriginal, VideoSinAudio);
+                var Resoluciones = ObtenerResolucionVideo(VideoSinAudio);
+                Parallel.ForEach(Resoluciones, resolucion =>
+                {
+                    string Nombre = $"{resolucion}_{videoPeticion.NombreUnico}.{videoPeticion.Formato}";
+                    string _Ubicacion = CambiarResolucion(VideoSinAudio, Path.Combine(videoPeticion.Directorio, Nombre), resolucion, videoPeticion.Formato);
+                    //string URL = SubirArchivoGCS(_Ubicacion, videoPeticion.UID, videoPeticion.NombreUnico);
+                    VideosCS videosCS = new VideosCS()
+                    {
+                        Ubicacion = _Ubicacion,
+                        Resolucion = resolucion,
+                    };
+
+                    lock (ListavideosCs) // Asegúrate de que la lista sea segura para subprocesos
+                    {
+                        ListavideosCs.Add(videosCS);
+                    }
+                });
+
+                return ListavideosCs;
+            }
+            catch (Exception)
+            {
+
+                throw;
+            }
+        }
+
+        public List<VideosCS> ObtenerVideoEnDiferenteResoluciones(VideoPeticion videoPeticion)
         {
             try
             {
@@ -477,7 +652,7 @@ namespace ProcesarVideosSeeltApi.Modelos
             }
         }
 
-        public  List<string> ObtenerResolucionVideo(string rutaVideo)
+        public List<string> ObtenerResolucionVideo(string rutaVideo)
         {
             try
             {
@@ -585,7 +760,7 @@ namespace ProcesarVideosSeeltApi.Modelos
             }
             catch (Exception ex)
             {
-                
+
                 Console.WriteLine(ex.Message);
                 return "";
             }
@@ -768,6 +943,56 @@ namespace ProcesarVideosSeeltApi.Modelos
             catch (Exception ex)
             {
                 return false;
+            }
+        }
+
+        public void CrearM3U8Avanzado(M3U8_Avanzado m3u8Data, string outputFilePath)
+        {
+            try
+            {
+                using (StreamWriter writer = new StreamWriter(outputFilePath))
+                {
+                    writer.WriteLine("#EXTM3U");
+                    writer.WriteLine("#EXT-X-VERSION:6");
+                    writer.WriteLine("#EXT-X-INDEPENDENT-SEGMENTS");
+
+                    // VIDEO
+                    foreach (var videoSegmento in m3u8Data.ListVideo)
+                    {
+                        string[] partes = videoSegmento.Resolucion.Split('x');
+
+                        int Ancho = int.Parse(partes[0]);
+                        int Alto = int.Parse(partes[1]);
+                        writer.WriteLine($"#EXT-X-STREAM-INF:RESOLUTION={videoSegmento.Resolucion},AVERAGE-BANDWIDTH={CalculateBandwidth(Ancho)},BANDWIDTH={CalculateBandwidth(Alto)}");
+                        writer.WriteLine(videoSegmento.Ubicacion);
+                    }
+
+                    // AUDIO
+                    foreach (var audioSegmento in m3u8Data.ListAudio)
+                    {
+                        if (audioSegmento == m3u8Data.ListAudio.First()) // El primer segmento de audio es predeterminado
+                        {
+                            writer.WriteLine($"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud0\",LANGUAGE=\"{audioSegmento.Idioma}\",NAME=\"{audioSegmento.Idioma}\",DEFAULT=YES,AUTOSELECT=YES,CHANNELS=\"2\",URI=\"{audioSegmento.Ubicacion}\"");
+                        }
+                        else
+                        {
+                            writer.WriteLine($"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud0\",LANGUAGE=\"{audioSegmento.Idioma}\",NAME=\"{audioSegmento.Idioma}\",AUTOSELECT=YES,CHANNELS=\"2\",URI=\"{audioSegmento.Ubicacion}\"");
+                        }
+                    }
+
+                    // SUBTITULOS
+                    foreach (var subtitulos in m3u8Data.ListSubtitulos)
+                    {
+                        foreach (var ubicacion in subtitulos.Value)
+                        {
+                            writer.WriteLine($"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"{subtitulos.Key}\",NAME=\"{subtitulos.Key}\",URI=\"{ubicacion}\"");
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Manejo de errores
             }
         }
 

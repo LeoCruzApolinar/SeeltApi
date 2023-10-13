@@ -1,4 +1,5 @@
 ﻿using System.Data.SqlClient;
+using System.Text.RegularExpressions;
 
 namespace ProcesarVideosSeeltApi.Modelos
 {
@@ -58,6 +59,49 @@ namespace ProcesarVideosSeeltApi.Modelos
             }
 
             return categorias;
+        }
+
+
+        public static async Task<string> GuardarArchivoVideo(string ubicacion, IFormFile archivoVideo)
+        {
+            try
+            {
+                if (archivoVideo != null && archivoVideo.Length > 0)
+                {
+                    var rutaArchivo = Path.Combine(ubicacion, archivoVideo.FileName);
+
+                    using (var stream = new FileStream(rutaArchivo, FileMode.Create))
+                    {
+                        await archivoVideo.CopyToAsync(stream);
+                    }
+
+                    return rutaArchivo;
+                }
+                else
+                {
+                    throw new ArgumentException("No se proporcionó un archivo de video.");
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error al guardar el archivo de video: {ex.Message}");
+            }
+        }
+
+        public static string ObtenerContenidoEntreCorchetes(string nombreArchivo)
+        {
+            // Utiliza una expresión regular para buscar contenido entre corchetes [..]
+            string patron = @"\[(.*?)\]";
+            Match match = Regex.Match(nombreArchivo, patron);
+
+            if (match.Success)
+            {
+                // El contenido entre corchetes se encuentra en match.Groups[1].Value
+                return match.Groups[1].Value;
+            }
+
+            // Si no se encuentra contenido entre corchetes, devolvemos una cadena vacía
+            return string.Empty;
         }
 
         //Guardar en base de datos

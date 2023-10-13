@@ -7,6 +7,7 @@ using System.Data.SqlClient;
 using System.Data;
 using LiteDB;
 using Newtonsoft.Json;
+using static SeeltApi.Modelos.Canales;
 
 namespace SeeltApi.Modelos
 {
@@ -18,6 +19,7 @@ namespace SeeltApi.Modelos
             public string Pais { get; set; }
             public string Nombre { get; set; }
             public string Apellido { get; set; }
+            public string UserName { get; set; }
             public DateTime FechaNacimiento { get; set; }
             public DateTime FechaDeInicio { get; set; }
             public string UrlFoto { get; set; }
@@ -44,6 +46,12 @@ namespace SeeltApi.Modelos
             public string USERNAME { get; set; }
 
             public IFormFile? FOTO { get; set; }
+        }
+
+        public class CanalSuscritos
+        {
+            public int CanalID { get; set; }
+            public string NombreCanal { get; set; }
         }
 
         //Verifica con firebase la existencia de usuario
@@ -263,7 +271,7 @@ namespace SeeltApi.Modelos
             }
         }
         //Obtener usuario
-        public  string ObtenerUsuarioPorID(int userID)
+        public string ObtenerUsuarioPorID(int userID)
         {
             string connectionString = General.CadenaConexion; // Reemplaza con tu cadena de conexión a la base de datos
             string jsonResult = string.Empty;
@@ -289,7 +297,8 @@ namespace SeeltApi.Modelos
                                 Apellido = reader["Apellido"].ToString(),
                                 FechaNacimiento = Convert.ToDateTime(reader["FechaNacimiento"]),
                                 FechaDeInicio = Convert.ToDateTime(reader["FechaDeInicio"]),
-                                UrlFoto = reader["UrlFoto"].ToString()
+                                UrlFoto = reader["UrlFoto"].ToString(),
+                                UserName = reader["USERNAME"].ToString()
                             };
 
                             jsonResult = JsonConvert.SerializeObject(usuario);
@@ -300,6 +309,67 @@ namespace SeeltApi.Modelos
             }
 
             return jsonResult;
+        }
+        //Obtener canales suscritos
+        public string ObtenerCanalesSuscritos(int userID)
+        {
+            List<CanalSuscritos> canalesSuscritos = new List<CanalSuscritos>();
+
+            using (SqlConnection connection = new SqlConnection(General.CadenaConexion))
+            {
+                connection.Open();
+
+                using (SqlCommand command = new SqlCommand("ObtenerCanalesSuscritos", connection))
+                {
+                    command.CommandType = CommandType.StoredProcedure;
+                    command.Parameters.AddWithValue("@ID", userID);
+
+                    using (SqlDataReader reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            CanalSuscritos canal = new CanalSuscritos
+                            {
+                                CanalID = Convert.ToInt32(reader["CanalID"]),
+                                NombreCanal = reader["NombreCanal"].ToString()
+                            };
+                            canalesSuscritos.Add(canal);
+                        }
+                    }
+                }
+            }
+
+            // Serializar la lista de canales como JSON
+            string canalesJson = JsonConvert.SerializeObject(canalesSuscritos);
+
+            return canalesJson;
+        }
+        //Registrar raccion
+        public bool RegistrarReaccion(int usuarioID, int videoID, int tipoReaccionID)
+        {
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(General.CadenaConexion))
+                {
+                    connection.Open();
+
+                    using (SqlCommand command = new SqlCommand("RegistrarReaccion", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+                        command.Parameters.AddWithValue("@UsuarioID", usuarioID);
+                        command.Parameters.AddWithValue("@IDVideo", videoID);
+                        command.Parameters.AddWithValue("@IDTipoReaccion", tipoReaccionID);
+
+                        command.ExecuteNonQuery(); // Ejecutar el procedimiento almacenado
+                    }
+                }
+
+                return true; // Registro exitoso
+            }
+            catch (Exception)
+            {
+                return false; // Error en el registro
+            }
         }
     }
 }

@@ -1,4 +1,7 @@
-﻿using Google.Cloud.Storage.V1;
+﻿using Google.Apis.Auth.OAuth2;
+using Google.Cloud.Storage.V1;
+using System.Net;
+using System.Security.AccessControl;
 
 namespace SeeltApi
 {
@@ -17,6 +20,7 @@ namespace SeeltApi
             string NombreDelObjeto = Path.GetFileName(archivo.FileName);
             try
             {
+                string unico = Guid.NewGuid().ToString();
                 using (Stream stream = archivo.OpenReadStream())
                 {
                     var objectPredefinedAcl = PredefinedObjectAcl.PublicRead;
@@ -24,10 +28,11 @@ namespace SeeltApi
                     {
                         PredefinedAcl = objectPredefinedAcl,
                     };
-                    NombreDelObjeto = $"{UID}/{CarpetaDeAlojamiento}/{NombreDelObjeto}";
+                    string nombreCodificado = WebUtility.UrlEncode(NombreDelObjeto);
+                    NombreDelObjeto = $"{UID}/{CarpetaDeAlojamiento}/{nombreCodificado}";
 
                     // Subir el objeto a GCS
-                    storageClient.UploadObject(NombreDelBucket, NombreDelObjeto, null, stream, Configuracion);
+                    var ob = storageClient.UploadObject(NombreDelBucket, NombreDelObjeto, "image/png", stream, Configuracion);
                 }
                 // Construir y retornar la URL pública del objeto
                 string urlPublica = $"https://storage.googleapis.com/{NombreDelBucket}/{NombreDelObjeto}";
@@ -39,6 +44,7 @@ namespace SeeltApi
                 return "";
             }
         }
+
         public string GetClientIpAddress(HttpRequest request)
         {
             // Intenta obtener la dirección IP desde las cabeceras de la solicitud
